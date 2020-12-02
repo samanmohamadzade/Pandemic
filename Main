@@ -1,0 +1,268 @@
+import javax.imageio.*;
+import javax.imageio.metadata.IIOMetadata;
+import javax.imageio.metadata.IIOMetadataNode;
+import javax.imageio.stream.FileImageOutputStream;
+import javax.imageio.stream.ImageOutputStream;
+import java.awt.image.BufferedImage;
+import java.awt.image.RenderedImage;
+import java.io.File;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.Random;
+
+
+class GifSequenceWriter {
+    protected ImageWriter gifWriter;
+    protected ImageWriteParam imageWriteParam;
+    protected IIOMetadata imageMetaData;
+
+    public GifSequenceWriter(ImageOutputStream outputStream,
+                             int imageType,
+                             int timeBetweenFramesMS,
+                             boolean loopContinuously) throws IIOException, IOException {
+        gifWriter = getWriter();
+        imageWriteParam = gifWriter.getDefaultWriteParam();
+        ImageTypeSpecifier imageTypeSpecifier = ImageTypeSpecifier.createFromBufferedImageType(imageType);
+
+        imageMetaData = gifWriter.getDefaultImageMetadata(imageTypeSpecifier, imageWriteParam);
+
+        String metaFormatName = imageMetaData.getNativeMetadataFormatName();
+
+        IIOMetadataNode root = (IIOMetadataNode) imageMetaData.getAsTree(metaFormatName);
+
+        IIOMetadataNode graphicsControlExtensionNode = getNode( root, "GraphicControlExtension");
+
+        graphicsControlExtensionNode.setAttribute("disposalMethod", "none");
+        graphicsControlExtensionNode.setAttribute("userInputFlag", "FALSE");
+        graphicsControlExtensionNode.setAttribute( "transparentColorFlag", "FALSE");
+        graphicsControlExtensionNode.setAttribute( "delayTime", Integer.toString(timeBetweenFramesMS / 10));
+        graphicsControlExtensionNode.setAttribute( "transparentColorIndex", "0");
+
+        IIOMetadataNode commentsNode = getNode(root, "CommentExtensions");
+        commentsNode.setAttribute("CommentExtension", "Created by MAH");
+
+        IIOMetadataNode appEntensionsNode = getNode( root, "ApplicationExtensions");
+
+        IIOMetadataNode child = new IIOMetadataNode("ApplicationExtension");
+
+        child.setAttribute("applicationID", "NETSCAPE");
+        child.setAttribute("authenticationCode", "2.0");
+
+        int loop = loopContinuously ? 0 : 1;
+
+        child.setUserObject(new byte[]{ 0x1, (byte) (loop & 0xFF), (byte) ((loop >> 8) & 0xFF)});
+        appEntensionsNode.appendChild(child);
+
+        imageMetaData.setFromTree(metaFormatName, root);
+
+        gifWriter.setOutput(outputStream);
+
+        gifWriter.prepareWriteSequence(null);
+    }
+
+    public void writeToSequence(RenderedImage img) throws IOException {
+        gifWriter.writeToSequence( new IIOImage( img, null, imageMetaData), imageWriteParam);
+    }
+
+    public void close() throws IOException {
+        gifWriter.endWriteSequence();
+    }
+
+    private static ImageWriter getWriter() throws IIOException {
+        Iterator<ImageWriter> iter = ImageIO.getImageWritersBySuffix("gif");
+        if(!iter.hasNext()) {
+            throw new IIOException("No GIF Image Writers Exist");
+        } else {
+            return iter.next();
+        }
+    }
+    private static IIOMetadataNode getNode(IIOMetadataNode rootNode, String nodeName) {
+        int nNodes = rootNode.getLength();
+        for (int i = 0; i < nNodes; i++) {
+            if (rootNode.item(i).getNodeName().compareToIgnoreCase(nodeName) == 0) {
+                return((IIOMetadataNode) rootNode.item(i));
+            }
+        }
+        IIOMetadataNode node = new IIOMetadataNode(nodeName);
+        rootNode.appendChild(node);
+        return(node);
+    }
+}
+public class Main {
+
+    public static void process(int People, int percent, String filename) throws Exception {
+
+        int[][][] people1 = new int[80][25][4];
+        int[][][] people2 = new int[80][25][4];
+        int[] SickPeople = new int[1000];
+        Random rand = new Random();
+        boolean Boolean;
+        boolean colored;
+        int Count;
+        int randColumn;
+        int randRow;
+
+        BufferedImage image = new BufferedImage(1200, 375, BufferedImage.TYPE_INT_RGB);
+
+        ImageOutputStream output = new FileImageOutputStream(new File(filename));
+        GifSequenceWriter writer = new GifSequenceWriter(output, BufferedImage.TYPE_INT_RGB, 250, true);
+
+        for (int Times = 0; Times < 1000; Times++) {
+
+            for (int i = 0; i < 80; i++)
+                for (int j = 0; j < 25; j++)
+                    for (int k = 0; k < 4; k++) {
+                        people1[i][j][k] = 0;
+                        people2[i][j][k] = 0;
+                    }
+
+            int healthy = People * (100 - percent) / 100 - 1;
+            for (int i = 0; i < healthy; i++) {
+                randRow = rand.nextInt( 25 );
+                randColumn = rand.nextInt( 80 );
+                people1[randColumn][randRow][0]++;
+            }
+
+            int quarantined = People * percent / 100;
+            for (int i = 0; i < quarantined; i++) {
+                randRow = rand.nextInt( 25 );
+                randColumn = rand.nextInt( 80 );
+                people1[randColumn][randRow][2] += 1;
+            }
+
+            randRow = rand.nextInt( 25 );
+            randColumn = rand.nextInt( 80 );
+            people1[randColumn][randRow][1]++;
+
+            for (int Day = 0; Day < 100; Day++) {
+
+                for (int i = 0; i < 80; i++)
+                    for (int j = 0; j < 25; j++) {
+
+                        colored = false;
+
+                        int Color = (253 << 16) | (253 << 8) | 253;//white
+
+                        if (people1[i][j][3] > 0) {
+                            if (Day < 100) {
+                                Count = people1[i][j][3];
+                                while (Count != 0) {
+                                    people2[i][j][3] += people1[i][j][3];
+                                    Count--;
+                                }
+                            }
+                            if (Times == 0 && !colored) {
+                                colored = true;
+                                Color = (220 << 16) | (220 << 8) | 0; //Yellow
+                            }
+                        }
+
+                        if (people1[i][j][2] > 0) {
+                            if (Day < 100) {
+                                Count = people1[i][j][2];
+                                while (Count != 0) {
+                                    people2[i][j][2] += 1;
+                                    if (people1[i][j][1] > 0 || people1[i][j][3] > 0) {
+                                        Boolean = rand.nextBoolean();
+                                        if (Boolean) {
+                                            people2[i][j][2]--;
+                                            people2[i][j][3]++;
+                                        }
+                                    }
+                                    Count--;
+                                }
+                            }
+                            if (Times == 0 && !colored) {
+                                colored = true;
+                                Color = (17 << 16) | (73 << 8) | 188; //Blue
+                            }
+                        }
+
+                        if (people1[i][j][1] > 0) {
+                            if (Day < 100) {
+                                Count = people1[i][j][1];
+                                while (Count != 0) {
+                                    do {
+                                        randColumn = (int) (Math.random() * (3)) - 1;
+                                        randRow = (int) (Math.random() * (3)) - 1;
+                                    } while (j + randRow > 24 || j + randRow < 0 || i + randColumn > 79 || i + randColumn < 0 || (randColumn == 0 && randRow == 0));
+                                    people2[i + randColumn][j + randRow][1]++;
+                                    Count--;
+                                }
+                            }
+                            if (Times == 0 && !colored) {
+                                colored = true;
+                                Color = (185 << 16) | (50 << 8) | 21; //Red
+                            }
+                        }
+
+                        if (people1[i][j][0] > 0) {
+                            if (Day < 100) {
+                                Count = people1[i][j][0];
+                                while (Count != 0) {
+                                    do {
+                                        randColumn = (int) (Math.random() * (3)) - 1;
+                                        randRow = (int) (Math.random() * (3)) - 1;
+                                    } while (j + randRow > 24 || j + randRow < 0 || i + randColumn > 79 || i + randColumn < 0 || (randColumn == 0 && randRow == 0));
+                                    people2[i + randColumn][j + randRow][0] += 1;
+                                    if (people1[i][j][1] > 0 || people1[i][j][3] > 0) {
+                                        Boolean = rand.nextBoolean();
+                                        if (Boolean){
+                                            people2[i + randColumn][j + randRow][1] += 1;
+                                            people2[i + randColumn][j + randRow][0] -= 1;
+                                        }
+
+                                    }
+                                    Count--;
+                                }
+                            }
+                            if (Times == 0 && !colored) {
+                                Color = (4 << 16) | (177 << 8) | 11; //Green
+                            }
+                        }
+
+                        if(Times == 0)
+                        for (int column = i * 15; column < (i + 1) * 15; column++)
+                            for (int row = j * 15; row < (j + 1) * 15; row++)
+                                image.setRGB( column, row, Color );
+                    }
+                if (Day < 100)
+                    for (int i = 0; i < 80; i++)
+                        for (int j = 0; j < 25; j++)
+                            for (int k = 0; k < 4; k++) {
+                                people1[i][j][k] = people2[i][j][k];
+                                people2[i][j][k] = 0;
+                            }
+
+                if (Times == 0)
+                    writer.writeToSequence( image );
+            }
+            int sum = 0;
+            for (int i = 0; i < 80; i++)
+                for (int j = 0; j < 25; j++) {
+                    sum += people1[i][j][1];
+                    sum += people1[i][j][3];
+                }
+            SickPeople[Times] = sum;
+        }
+        Arrays.sort( SickPeople );
+        double median = (SickPeople[499] + SickPeople[500]) / 2;
+        writer.close();
+        output.close();
+        if(percent == 0)
+            System.out.printf("Median for %d people = %f\n", People,median );
+        else
+            System.out.printf("Median for %d people (%d%% quarantined) = %f \n",People,percent,median);
+
+        System.out.println("gif exported\n");
+    }
+
+    public static void main(String[] args) throws Exception {
+        process(100 ,0,"100P-0%q.gif");
+        process(1000 ,0, "1000P-0%q.gif");
+        process(100 ,25,"100P-25%q.gif");
+        process(200 ,25, "1000P-25%q.gif");
+
+    }
+}
